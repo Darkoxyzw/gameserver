@@ -1,38 +1,34 @@
-import asyncio
-import http
-import signal
+from aiohttp import web, WSMsgType
 import json
-from websockets.asyncio.server import serve
 
 players = {}
 
-async def handler(websocket):
-    player_id = id(websocket)
-    players[player_id] = websocket
-    print(f"Conectado: {player_id} | Total: {len(players)}")
-    try:
-        async for message in websocket:
-            data = json.loads(message)
-            data["id"] = player_id
+async def ws_handler(request):
+    ws = web.WebSocketResponse()
+    await ws.prepare(request)
+    pid = id(ws)
+    players[pid] = ws
+    print(f"Conectado: {pid}")
+    async for msg in ws:
+        if msg.type == WSMsgType.TEXT:
+            data = json.loads(msg.data)
+            data["id"] = pid
             out = json.dumps(data)
-            for pid, ws in list(players.items()):
-                if pid != player_id:
+            for k, client in list(players.items()):
+                if k != pid:
                     try:
-                        await ws.send(out)
+                        await client.send_str(out)
                     except:
                         pass
-    finally:
-        del players[player_id]
-        print(f"Desconectado: {player_id} | Total: {len(players)}")
+    del players[pid]
+    print(f"Desconectado: {pid}")
+    return ws
 
-def health_check(connection, request):
-    if request.path == "/healthz":
-        return connection.respond(http.HTTPStatus.OK, "OK\n")
+async def health(request):
+    return web.Response(text="OK")
 
-async def main():
-    async with serve(handler, "0.0.0.0", 8080, process_request=health_check) as server:
-        loop = asyncio.get_running_loop()
-        loop.add_signal_handler(signal.SIGTERM, server.close)
-        await server.wait_closed()
+app = web.Application()
+app.router.add_get("/", ws_handler)
+app.router.add_get("/health", health)
 
-asyncio.run(main())
+web.run_app(app, host="0.0.0.0", port=8080)
