@@ -1,6 +1,9 @@
 import asyncio
 import websockets
 import json
+from http.server import BaseHTTPRequestHandler
+import threading
+from http.server import HTTPServer
 
 players = {}
 
@@ -11,7 +14,6 @@ async def handler(websocket):
 
     try:
         async for message in websocket:
-            # Repassa a mensagem para todos os outros jogadores
             data = json.loads(message)
             data["id"] = player_id
             msg = json.dumps(data)
