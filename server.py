@@ -9,6 +9,7 @@ async def ws_handler(request):
     pid = id(ws)
     players[pid] = ws
     print(f"Conectado: {pid}")
+
     async for msg in ws:
         if msg.type == WSMsgType.TEXT:
             data = json.loads(msg.data)
@@ -20,7 +21,16 @@ async def ws_handler(request):
                         await client.send_str(out)
                     except:
                         pass
+
+    # Jogador saiu — avisa os outros
     del players[pid]
+    disconnect_msg = json.dumps({"disconnected": pid})
+    for client in list(players.values()):
+        try:
+            await client.send_str(disconnect_msg)
+        except:
+            pass
+
     print(f"Desconectado: {pid}")
     return ws
 
@@ -30,5 +40,4 @@ async def health(request):
 app = web.Application()
 app.router.add_get("/", ws_handler)
 app.router.add_get("/health", health)
-
 web.run_app(app, host="0.0.0.0", port=8080)
